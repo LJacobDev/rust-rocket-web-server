@@ -22,7 +22,7 @@ fn index() -> &'static str {
 fn launch_rocket() -> _ {
 
         //create sqlite database
-        let db_connection = rusqlite::Connection::open("data.squlite");
+        let db_connection = rusqlite::Connection::open("data.sqlite");
 
         // rocket::ignite().mount("/", routes![index].launch());
         rocket::build().mount("/", routes![index])
