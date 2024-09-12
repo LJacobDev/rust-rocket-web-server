@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rocket = "0.5.1"
+rocket = {version = "0.5.1", features = ["json"] }
 rusqlite = {version = "0.32.1", features = ["bundled"]}
+serde = "1.0.210"
