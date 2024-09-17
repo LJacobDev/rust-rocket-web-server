@@ -6,7 +6,10 @@
 //this is how we get access to 'get()' in the decorator below here
 #[macro_use]
 extern crate rocket;
-use rocket::{http::Status, serde::{json::Json, Deserialize, Serialize}};
+use rocket::{
+    http::Status,
+    serde::{json::Json, Deserialize, Serialize},
+};
 
 //Data structures for the to-do list functions
 
@@ -31,30 +34,62 @@ fn index() -> &'static str {
     "Hello, world!  Because I ran 'cargo watch -x run', it makes it reload when I press save to any of the files on here (that aren't in .gitignore)"
 }
 
+/*
+
+   making a curl request to connect to this
+
+   USE THIS KIND OF FORMATTING:
+
+   curl localhost:8000/todo -X POST -d "\"important todo item\"" -H "Content-Type: application/json"
+
+
+   Reasons why explained:
+
+   curl localhost:8000/todo -X POST -d '"important todo item"' -H "Content-Type: application/json"
+
+   this was supposed to work, but for some reason a message comes back saying this:
+
+   POST /todo application/json:
+   >> Matched: (add_todo_item) POST /todo application/json
+   >> Data guard `Json < String >` failed: Parse("'important todo item'", Error("expected value", line: 1, column: 1)).
+   >> Outcome: Error(400 Bad Request)
+   >> No 400 catcher registered. Using Rocket default.
+   >> Response succeeded.
+
+   it worked when I changed it for the windows command prompt, which handles quotes differently:
+
+   curl localhost:8000/todo -X POST -d "\"important todo item\"" -H "Content-Type: application/json"
+
+*/
+
 #[post("/todo", format = "json", data = "<item>")]
 fn add_todo_item(item: Json<String>) -> Result<Json<StatusMessage>, String> {
-
     let db_connection = match rusqlite::Connection::open("data.sqlite") {
         Ok(connection) => connection,
-        Err(_) => return Err("Unable to connect to database".to_string())
+        Err(_) => return Err("Unable to connect to database".to_string()),
     };
 
-    let mut statement = match db_connection.prepare("insert into todo_list (id, item) values (null, $1);") {
-        Ok(statement) => statement,
-        Err(_) => return Err("Unable to prepare query".to_string())
-    };
+    //leaving the id value null will allow it to be autoincremented even though the table creation didn't specify autoincrement for it explicitly
+    let mut statement =
+        match db_connection.prepare("insert into todo_list (id, item) values (null, $1);") {
+            Ok(statement) => statement,
+            Err(_) => return Err("Unable to prepare query".to_string()),
+        };
 
     //item.0 is referring to 'item' the input parameter, which is a json object that is being given via POST
     //it has a .0 value but it wasn't explained much here how that exactly works - it looks like accessing part of a tuple here
     let results = statement.execute(&[&item.0]);
 
     match results {
-        Ok(rows_affected) => Ok(Json(StatusMessage { message: format!("Updated {} rows", rows_affected)})),
-        Err(_) => return Err("Unable to execute query".to_string())
+        Ok(rows_affected) => Ok(Json(StatusMessage {
+            message: format!("Inserted {} rows", rows_affected),
+        })),
+        Err(_) => return Err("Unable to insert todo items".to_string()),
     }
 }
 
 
+//use 'curl localhost:8000/todo' to retrieve a Json<TodoList> that contains all the rows of the todo_list table from data.sqlite
 #[get("/todo")]
 fn fetch_all_todo_items() -> Result<Json<TodoList>, String> {
     let db_connection = match rusqlite::Connection::open("data.sqlite") {
@@ -132,5 +167,5 @@ fn launch_rocket() -> _ {
       //this is not what would normally be done in a proper database, but it will work for this simple example application
 
     // rocket::ignite().mount("/", routes![index].launch());
-    rocket::build().mount("/", routes![index, fetch_all_todo_items])
+    rocket::build().mount("/", routes![index, add_todo_item, fetch_all_todo_items])
 }
