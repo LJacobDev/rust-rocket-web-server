@@ -7,6 +7,7 @@
 #[macro_use]
 extern crate rocket;
 use rocket::{
+    futures::future::err,
     http::Status,
     serde::{json::Json, Deserialize, Serialize},
 };
@@ -88,6 +89,26 @@ fn add_todo_item(item: Json<String>) -> Result<Json<StatusMessage>, String> {
     }
 }
 
+//delete a todo item given the endpoint /todo/<id>
+#[delete("/todo/<id>")]
+fn delete_todo_item(id: i64) -> Result<Json<StatusMessage>, String> {
+    let db_connection = match rusqlite::Connection::open("data.sqlite") {
+        Ok(connection) => connection,
+        Err(_) => return Err(String::from("Failed to connect to database")),
+    };
+
+    let mut statement = match db_connection.prepare("delete from todo_list where id = $1;") {
+        Ok(statement) => statement,
+        Err(_) => return Err(String::from("Failed to prepare SQL statement")),
+    };
+
+    let result = statement.execute(&[&id]);
+
+    match result {
+        Ok(rows_changed) => Ok(Json(StatusMessage { message: format!("{} rows were deleted", rows_changed)})),
+        Err(_) => return Err(String::from("Failed to delete values"))
+    }
+}
 
 //use 'curl localhost:8000/todo' to retrieve a Json<TodoList> that contains all the rows of the todo_list table from data.sqlite
 #[get("/todo")]
@@ -167,5 +188,5 @@ fn launch_rocket() -> _ {
       //this is not what would normally be done in a proper database, but it will work for this simple example application
 
     // rocket::ignite().mount("/", routes![index].launch());
-    rocket::build().mount("/", routes![index, add_todo_item, fetch_all_todo_items])
+    rocket::build().mount("/", routes![index, add_todo_item, delete_todo_item, fetch_all_todo_items])
 }
